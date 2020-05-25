@@ -9,7 +9,7 @@ let cop = newCoro("producer", producer)
 
 proc maker(val: int): int =
   while true:
-    discard jield(42)
+    echo "maker got ",  jield(42)
 
 proc producer(val: int): int =
   for i in 0..2:
@@ -22,6 +22,7 @@ proc producer(val: int): int =
 
 for i in 0..8:
   echo "cop ", i, " = ", cop.resume(10)
+  echo ""
 
 
 # vi: ft=nim ts=2 sw=2

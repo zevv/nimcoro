@@ -19,6 +19,7 @@ type
     valResume: int
     valJield: int
     status*: CoroStatus
+    resumer: Coro         # The coroutine resuming us
 
   Coro* = ref CoroObj
 
@@ -51,18 +52,19 @@ proc `$`*(coro: Coro): string =
 
 
 proc resume*(coro: Coro, val: int): int =
-  echo "resume ", coroCur, " -> ", coro
+  #echo "resume ", coroCur, " -> ", coro
 
   assert coro != nil
   assert coroCur != nil
   assert coroCur.status == csRunning
-
-  if coroCur != nil:
-    coroCur.status = csNormal
-
+  
   if coro.status != csSuspended:
-    echo "Can not resume " & $coro
-    raise newException(CoroException, "Can not resume " & $coro)
+    let msg = "cannot resume coroutine " & $coro
+    echo(msg)
+    raise newException(CoroException, msg)
+
+  coro.resumer = coroCur
+  coroCur.status = csNormal
 
   coro.valResume = val
   coro.status = csRunning
@@ -70,7 +72,7 @@ proc resume*(coro: Coro, val: int): int =
   coroCur = coro
 
   let frame = getFrameState()
-  let r = swapcontext(coro.ctxPrev, coro.ctx)  # Does not return until coro yields
+  let r = swapcontext(coro.resumer.ctx, coro.ctx)  # Does not return until coro yields
   assert(r == 0)
   setFrameState(frame)
 
@@ -82,33 +84,30 @@ proc resume*(coro: Coro, val: int): int =
 
 proc jield*(val: int): int =
   let coro = coroCur
-  echo "jield ", coro
+  #echo "jield ", coro, " -> ", coro.resumer
 
   assert coro != nil
-  assert coro.status == csRunning
+  assert coro.status in {csRunning, csDead}
 
   coro.valJield = val
   if coro.status == csRunning:
     coro.status = csSuspended
 
   let frame = getFrameState()
-  let r = swapcontext(coro.ctx, coro.ctxPrev) # Does not return until coro resumes
+  let r = swapcontext(coro.ctx, coro.resumer.ctx) # Does not return until coro resumes
   assert(r == 0)
   setFrameState(frame)
 
-  echo "swapped ", coroCur
-  return val
+  return coro.valResume
 
 
 proc schedule(coro: Coro) {.cdecl.} =
   let val = coro.fn(coro.valResume)
   coro.status = csDead
-  echo "dead ", coro
   echo jield val
 
 
-coroMain = newCoro("main", nil)
-coroMain.status = csRunning
+coroMain = Coro(name: "main", status: csRunning)
 coroCur = coroMain
 
 # vi: ft=nim ts=2 sw=2
