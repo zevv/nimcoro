@@ -10,7 +10,7 @@ type
     csNormal,     # active but not running (resumed another coro)
     csDead        # finished or stopped with an exception
 
-  CoroObj* = object
+  Coro* = ref object
     name: string
     ctx: ucontext_t
     ctxPrev: ucontext_t
@@ -20,8 +20,6 @@ type
     valJield: int
     status*: CoroStatus
     resumer: Coro         # The coroutine resuming us
-
-  Coro* = ref CoroObj
 
   CoroFn = proc(val: int): int
 
@@ -52,7 +50,7 @@ proc `$`*(coro: Coro): string =
 
 
 proc resume*(coro: Coro, val: int): int =
-  #echo "resume ", coroCur, " -> ", coro
+  echo "resume ", coroCur, " -> ", coro
 
   assert coro != nil
   assert coroCur != nil
@@ -84,7 +82,7 @@ proc resume*(coro: Coro, val: int): int =
 
 proc jield*(val: int): int =
   let coro = coroCur
-  #echo "jield ", coro, " -> ", coro.resumer
+  echo "jield ", coro, " -> ", coro.resumer
 
   assert coro != nil
   assert coro.status in {csRunning, csDead}
@@ -104,7 +102,7 @@ proc jield*(val: int): int =
 proc schedule(coro: Coro) {.cdecl.} =
   let val = coro.fn(coro.valResume)
   coro.status = csDead
-  echo jield val
+  discard jield(val)
 
 
 coroMain = Coro(name: "main", status: csRunning)
