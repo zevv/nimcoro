@@ -4,11 +4,6 @@ import eventqueue
 
 var evq: Evq
 
-type
-  Client = ref object
-    fd: int
-    coro: Coro
-
 # This is where the magic happens: This will add a function callback to the
 # event queue that will resume the current coro, and the coro will yield itself
 # to sleep. It will be awoken when the fd has an event,
