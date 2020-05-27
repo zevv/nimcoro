@@ -15,7 +15,7 @@ proc waitForEvent(coro: Coro, fd: int, event: int) =
 
 # "async" wait for fd and read data
 
-proc magicRead(coro: Coro, fd: int): string =
+proc asyncRead(coro: Coro, fd: int): string =
   waitForEvent(coro, fd, POLLIN)
   var buf = newString(100)
   let r = recv(fd.SocketHandle, buf[0].addr, buf.len, 0)
@@ -24,17 +24,21 @@ proc magicRead(coro: Coro, fd: int): string =
 
 # "async" wait for fd and write data
 
-proc magicWrite(coro: Coro, fd: int, buf: string) =
+proc asyncWrite(coro: Coro, fd: int, buf: string) =
   waitForEvent(coro, fd, POLLOUT)
   discard send(fd.SocketHandle, buf[0].unsafeAddr, buf.len, 0)
 
 # Coroutine handling one client connection.
 
 proc doClient(coro: Coro, fd: int) =
-  magicWrite(coro, fd, "Hello! Please type something.\n")
+  asyncWrite(coro, fd, "Hello! Please type something.\n")
   while true:
-    let buf = magicRead(coro, fd)
-    magicWrite(coro, fd, "You sent " & $buf.len & " characters\n")
+    let buf = asyncRead(coro, fd)
+    if buf.len > 0:
+      asyncWrite(coro, fd, "You sent " & $buf.len & " characters\n")
+    else:
+      echo "Client went away"
+      break
 
 # Coroutine handling the server socket
 
