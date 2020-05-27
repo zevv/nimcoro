@@ -16,12 +16,12 @@ type
     ctxPrev: ucontext_t
     stack: seq[uint8]
     fn: CoroFn
-    valResume: int
-    valJield: int
+    valResume: string
+    valJield: string
     status*: CoroStatus
     resumer: Coro         # The coroutine resuming us
 
-  CoroFn = proc(val: int): int
+  CoroFn = proc(val: string): string
 
 
 var coroMain {.threadvar.}: Coro
@@ -49,8 +49,8 @@ proc `$`*(coro: Coro): string =
   coro.name & ":" & $coro.status
 
 
-proc resume*(coro: Coro, val: int): int =
-  echo "resume ", coroCur, " -> ", coro
+proc resume*(coro: Coro, val: string): string =
+  #echo "resume ", coroCur, " -> ", coro
 
   assert coro != nil
   assert coroCur != nil
@@ -80,9 +80,9 @@ proc resume*(coro: Coro, val: int): int =
   return coro.valJield
 
 
-proc jield*(val: int): int =
+proc jield*(val: string): string =
   let coro = coroCur
-  echo "jield ", coro, " -> ", coro.resumer
+  #echo "jield ", coro, " -> ", coro.resumer
 
   assert coro != nil
   assert coro.status in {csRunning, csDead}
