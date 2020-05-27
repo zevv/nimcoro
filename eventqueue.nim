@@ -45,7 +45,7 @@ proc poll(evq: Evq) =
     return
 
   for pfd in pfds:
-    if pfd.revents == POLLIN:
+    if pfd.revents == pfd.events:
       let fdh = evq.fdhs[pfd.fd]
       fdh.fn()
 
