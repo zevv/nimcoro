@@ -4,39 +4,59 @@ import eventqueue
 
 var evq: Evq
 
-proc doClient(cmd: string): string =
-  echo "> cmd: ", cmd
+type
+  Client = ref object
+    fd: int
+    coro: Coro
 
-  var buf: string
+
+# Magic glue between coroutine and event queue
+
+proc magicRead(coro: Coro, fd: int): string =
+
+  # Register a proc on fd-readable event that resumes this coroutine
+  evq.addFd(fd, POLLIN, proc() = coro.resume())
+
+  # Jield away, this will return only when the above lambda is called from the evq
+  jield()
+  evq.delFd(fd)
+
+  # We get here when the socket is readable: recv data and return
+  var buf = newString(100)
+  let r = recv(fd.SocketHandle, buf[0].addr, buf.len, 0)
+  buf.setlen(r)
+  return buf
+
+
+# Coroutine handling one client
+
+proc doClient(coro: Coro, fd: int) =
   while true:
-    let buf = jield "> "
-    echo "> buf: ", buf
+    let buf = magicRead(coro, fd)
+    echo "rx> ", buf
 
+
+# Below is a simple TCP server accepting multiple clients, all in
+# the usual callback structure, built on a very simple event loop
 
 proc doServer() =
-  let fdServer = newNativeSocket()
+
+  # Create TCP server socket
+
+  let fds = createNativeSocket()
   var sa: Sockaddr_in
   sa.sin_family = AF_INET.uint16
   sa.sin_port = htons(9000)
   sa.sin_addr.s_addr = INADDR_ANY
-  discard fdServer.bindAddr(cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
-  discard fdServer.listen(SOMAXCONN)
+  discard fds.bindAddr(cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
+  discard fds.listen(SOMAXCONN)
 
-  evq.addFd(fdServer.int, proc() =
-    let (fdClient, st) = fdServer.accept()
-    echo fdClient.repr, " ", st.repr
+  # Register callback for new client
 
-    let co = newCoro("client", doClient)
-
-    evq.addFd(fdClient.int, proc() =
-      var buf = newString(100)
-      let r = recv(fdClient, buf[0].addr, buf.len, 0)
-      if r == 0: return
-      buf.setlen(r)
-      var resp = co.resume(buf)
-      discard send(fdClient, resp[0].addr, resp.len, 0)
-    )
-
+  evq.addFd(fds.int, POLLIN, proc() =
+    let (fdc, st) = fds.accept()
+    echo "Accepted new client ", st, ", creating coroutine"
+    let co = newCoro("client", doClient, fdc.int)
   )
 
 

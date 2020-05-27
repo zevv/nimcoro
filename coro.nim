@@ -12,16 +12,15 @@ type
 
   Coro* = ref object
     name: string
+    arg: int
     ctx: ucontext_t
     ctxPrev: ucontext_t
     stack: seq[uint8]
     fn: CoroFn
-    valResume: string
-    valJield: string
     status*: CoroStatus
     resumer: Coro         # The coroutine resuming us
 
-  CoroFn = proc(val: string): string
+  CoroFn = proc(coro: Coro, arg: int)
 
 
 var coroMain {.threadvar.}: Coro
@@ -29,19 +28,26 @@ var coroCur {.threadVar.}: Coro
 
 
 proc schedule(coro: Coro) {.cdecl.}
+proc resume*(coro: Coro)
 
 
-proc newCoro*(name: string, fn: CoroFn, stackSize=16384): Coro =
+proc newCoro*(name: string, fn: CoroFn, arg: int): Coro =
   let coro = Coro()
+
   coro.name = name
-  coro.stack.setLen(stackSize)
-  coro.ctx.uc_stack.ss_sp = coro.stack[0].addr
-  coro.ctx.uc_stack.ss_size = stackSize
   coro.fn = fn
+  coro.arg = arg
+
+  coro.stack.setLen(32768)
+  coro.ctx.uc_stack.ss_sp = coro.stack[0].addr
+  coro.ctx.uc_stack.ss_size = coro.stack.len
   coro.status = csSuspended
   let r = getcontext(coro.ctx)
   makecontext(coro.ctx, schedule, 1, coro);
   doAssert(r == 0)
+
+  coro.resume()
+
   return coro
 
 
@@ -49,7 +55,7 @@ proc `$`*(coro: Coro): string =
   coro.name & ":" & $coro.status
 
 
-proc resume*(coro: Coro, val: string): string =
+proc resume*(coro: Coro) =
   #echo "resume ", coroCur, " -> ", coro
 
   assert coro != nil
@@ -64,7 +70,6 @@ proc resume*(coro: Coro, val: string): string =
   coro.resumer = coroCur
   coroCur.status = csNormal
 
-  coro.valResume = val
   coro.status = csRunning
   let coroPrev = coroCur
   coroCur = coro
@@ -77,17 +82,15 @@ proc resume*(coro: Coro, val: string): string =
   coroCur = coroPrev
   if coroCur != nil:
     coroCur.status = csRunning
-  return coro.valJield
 
 
-proc jield*(val: string): string =
+proc jield*() =
   let coro = coroCur
   #echo "jield ", coro, " -> ", coro.resumer
 
   assert coro != nil
   assert coro.status in {csRunning, csDead}
 
-  coro.valJield = val
   if coro.status == csRunning:
     coro.status = csSuspended
 
@@ -96,13 +99,12 @@ proc jield*(val: string): string =
   assert(r == 0)
   setFrameState(frame)
 
-  return coro.valResume
 
 
 proc schedule(coro: Coro) {.cdecl.} =
-  let val = coro.fn(coro.valResume)
+  coro.fn(coro, coro.arg)
   coro.status = csDead
-  discard jield(val)
+  jield()
 
 
 coroMain = Coro(name: "main", status: csRunning)
