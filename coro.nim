@@ -20,7 +20,7 @@ type
     caller: Coro         # The coroutine resuming us
     task: TaskBase
 
-  CoroFn = proc(t: TaskBase)
+  CoroFn* = proc(t: TaskBase)
 
   TaskBase* = ref object of RootObj
 
@@ -39,7 +39,7 @@ proc schedule(coro: Coro) {.cdecl.} =
   jield()
 
 
-proc newCoro*(fn: CoroFn, task: TaskBase, start=true): Coro {.discardable.} =
+proc newCoro*(fn: CoroFn, task=TaskBase(), start=true): Coro {.discardable.} =
   ## Create a new coroutine with body `fn`. If `start` is true the coroutine
   ## will be executed right away
   let coro = Coro(fn: fn, status: csSuspended, task: task)

@@ -1,5 +1,6 @@
 import coro
 import posix
+import times
 import eventqueue
 
 let port = 9000
@@ -13,18 +14,19 @@ type
 # event queue that will resume the current coro, and the coro will yield itself
 # to sleep. It will be awoken when the fd has an event,
 
-proc waitForEvent(fd: SocketHandle, event: int) =
+proc waitForFd(fd: SocketHandle, event: int) =
   let co = coro.running()
-  proc resume_me() =
+  proc resume_me(): bool =
     co.resume()
   evq.addFd(fd.int, event, resume_me)
   jield()
   evq.delFd(fd.int)
 
+
 # "async" wait for fd and read data
 
 proc asyncRead(fd: SocketHandle): string =
-  waitForEvent(fd, POLLIN)
+  waitForFd(fd, POLLIN)
   var buf = newString(100)
   let r = recv(fd, buf[0].addr, buf.len, 0)
   buf.setlen(r)
@@ -33,7 +35,7 @@ proc asyncRead(fd: SocketHandle): string =
 # "async" wait for fd and write data
 
 proc asyncWrite(fd: SocketHandle, buf: string) =
-  waitForEvent(fd, POLLOUT)
+  waitForFd(fd, POLLOUT)
   discard send(fd, buf[0].unsafeAddr, buf.len, 0)
 
 # Coroutine handling one client connection.
@@ -54,7 +56,7 @@ proc doClient(task: TaskBase) =
 proc doServer(task: TaskBase) =
   let fd = task.MyTask.fd
   while true:
-    waitForEvent(fd, POLLIN)
+    waitForFd(fd, POLLIN)
     var sa: Sockaddr_in
     var saLen: SockLen
     let fdc = posix.accept(fd, cast[ptr SockAddr](sa.addr), saLen.addr)
@@ -74,6 +76,19 @@ discard listen(fd, SOMAXCONN)
 discard newCoro(doServer, MyTask(fd: fd))
 
 echo "TCP server ready on port ", port
+
+# Just for fun, create a tick tock coroutine
+
+proc doTick(task: TaskBase) =
+  var n = 0
+  while true:
+    echo "tick ", n
+    inc n
+    jield()
+ 
+let co = newCoro(doTick)
+evq.addTimer(1.0, proc(): bool = co.resume())
+
 
 # Forever run the event loop
 evq.run()

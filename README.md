@@ -18,7 +18,7 @@ There's a few moving parts in this project:
   be called back when the file descriptor is ready.
  
 - main.nim: Here the above two modules come together to create very friendly
-  async I/O. Look at the `waitForEvent()` proc to see what is happening. This
+  async I/O. Look at the `waitForFd()` proc to see what is happening. This
   example creates a listening TCP socket which can handle multiple clients,
   which are all run inside coroutines.
 
