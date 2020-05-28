@@ -14,7 +14,6 @@ type
 
   Coro* = ref object
     ctx: ucontext_t
-    ctxPrev: ucontext_t
     stack: array[stackSize, uint8]
     fn: CoroFn
     status*: CoroStatus
