@@ -1,5 +1,5 @@
 import coro
-import nativesockets
+import posix
 import eventqueue
 
 let port = 9000
@@ -22,7 +22,7 @@ proc waitForEvent(fd: SocketHandle, event: int) =
 proc asyncRead(fd: SocketHandle): string =
   waitForEvent(fd, POLLIN)
   var buf = newString(100)
-  let r = recv(fd.SocketHandle, buf[0].addr, buf.len, 0)
+  let r = recv(fd, buf[0].addr, buf.len, 0)
   buf.setlen(r)
   return buf
 
@@ -30,7 +30,7 @@ proc asyncRead(fd: SocketHandle): string =
 
 proc asyncWrite(fd: SocketHandle, buf: string) =
   waitForEvent(fd, POLLOUT)
-  discard send(fd.SocketHandle, buf[0].unsafeAddr, buf.len, 0)
+  discard send(fd, buf[0].unsafeAddr, buf.len, 0)
 
 # Coroutine handling one client connection.
 
@@ -49,23 +49,25 @@ proc doClient(fd: SocketHandle) =
 proc doServer(fd: SocketHandle) =
   while true:
     waitForEvent(fd, POLLIN)
-    let (fdc, st) = fd.SocketHandle.accept()
-    echo "Accepted new client ", st
+    var sa: Sockaddr_in
+    var saLen: SockLen
+    let fdc = posix.accept(fd, cast[ptr SockAddr](sa.addr), saLen.addr)
+    echo "Accepted new client"
     newCoro(proc() =
       doClient(fdc))
 
 # Create TCP server socket and coroutine
 
-let fds = createNativeSocket()
+let fd = posix.socket(AF_INET, SOCK_STREAM, 0)
 var sa: Sockaddr_in
 sa.sin_family = AF_INET.uint16
 sa.sin_port = htons(port.uint16)
 sa.sin_addr.s_addr = INADDR_ANY
-discard fds.bindAddr(cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
-discard fds.listen(SOMAXCONN)
+discard bindSocket(fd, cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
+discard listen(fd, SOMAXCONN)
 
 let c = newCoro(proc() =
-  doServer(fds))
+  doServer(fd))
 
 echo "TCP server ready on port ", port
 
