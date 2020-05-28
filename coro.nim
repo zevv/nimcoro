@@ -17,7 +17,7 @@ type
     stack: array[stackSize, uint8]
     fn: CoroFn
     status*: CoroStatus
-    resumer: Coro         # The coroutine resuming us
+    caller: Coro         # The coroutine resuming us
 
   CoroFn = proc()
 
@@ -64,7 +64,7 @@ proc resume*(coro: Coro) =
     echo(msg)
     raise newException(CoroException, msg)
 
-  coro.resumer = coroCur
+  coro.caller = coroCur
   coroCur.status = csNormal
 
   coro.status = csRunning
@@ -72,7 +72,7 @@ proc resume*(coro: Coro) =
   coroCur = coro
 
   let frame = getFrameState()
-  let r = swapcontext(coro.resumer.ctx, coro.ctx)  # Does not return until coro yields
+  let r = swapcontext(coro.caller.ctx, coro.ctx)  # Does not return until coro yields
   assert(r == 0)
   setFrameState(frame)
 
@@ -90,7 +90,7 @@ proc jield*() =
     coro.status = csSuspended
 
   let frame = getFrameState()
-  let r = swapcontext(coro.ctx, coro.resumer.ctx) # Does not return until coro resumes
+  let r = swapcontext(coro.ctx, coro.caller.ctx) # Does not return until coro resumes
   assert(r == 0)
   setFrameState(frame)
 
