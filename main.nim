@@ -18,9 +18,9 @@ proc waitForFd(fd: SocketHandle, event: int) =
   let co = coro.running()
   proc resume_me(): bool =
     co.resume()
-  evq.addFd(fd.int, event, resume_me)
+  let fdh = evq.addFd(fd.int, event, resume_me)
   jield()
-  evq.delFd(fd.int)
+  evq.delFd(fdh)
 
 
 # "async" wait for fd and read data
@@ -87,7 +87,7 @@ proc doTick(task: TaskBase) =
     jield()
  
 let co = newCoro(doTick)
-evq.addTimer(1.0, proc(): bool = co.resume())
+discard evq.addTimer(1.0, proc(): bool = co.resume())
 
 
 # Forever run the event loop
