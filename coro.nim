@@ -18,9 +18,11 @@ type
     fn: CoroFn
     status*: CoroStatus
     caller: Coro         # The coroutine resuming us
+    task: TaskBase
 
-  CoroFn = proc()
+  CoroFn = proc(t: TaskBase)
 
+  TaskBase* = ref object of RootObj
 
 var coroMain {.threadvar.}: Coro  # The "main" coroutine, which is actually not a coroutine
 var coroCur {.threadVar.}: Coro   # The current active coroutine.
@@ -32,15 +34,15 @@ proc resume*(coro: Coro)
 # makecontext() target
 
 proc schedule(coro: Coro) {.cdecl.} =
-  coro.fn()
+  coro.fn(coro.task)
   coro.status = csDead
   jield()
 
 
-proc newCoro*(fn: CoroFn, start=true): Coro {.discardable.} =
+proc newCoro*(fn: CoroFn, task: TaskBase, start=true): Coro {.discardable.} =
   ## Create a new coroutine with body `fn`. If `start` is true the coroutine
   ## will be executed right away
-  let coro = Coro(fn: fn, status: csSuspended)
+  let coro = Coro(fn: fn, status: csSuspended, task: task)
   coro.ctx.uc_stack.ss_sp = coro.stack[0].addr
   coro.ctx.uc_stack.ss_size = coro.stack.len
 

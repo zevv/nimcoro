@@ -5,6 +5,10 @@ import eventqueue
 let port = 9000
 var evq: Evq
 
+type
+  MyTask* = ref object of TaskBase
+    fd: SocketHandle
+
 # This is where the magic happens: This will add a function callback to the
 # event queue that will resume the current coro, and the coro will yield itself
 # to sleep. It will be awoken when the fd has an event,
@@ -34,7 +38,8 @@ proc asyncWrite(fd: SocketHandle, buf: string) =
 
 # Coroutine handling one client connection.
 
-proc doClient(fd: SocketHandle) =
+proc doClient(task: TaskBase) =
+  let fd = task.Mytask.fd
   asyncWrite(fd, "Hello! Please type something.\n")
   while true:
     let buf = asyncRead(fd)
@@ -46,14 +51,15 @@ proc doClient(fd: SocketHandle) =
 
 # Coroutine handling the server socket
 
-proc doServer(fd: SocketHandle) =
+proc doServer(task: TaskBase) =
+  let fd = task.MyTask.fd
   while true:
     waitForEvent(fd, POLLIN)
     var sa: Sockaddr_in
     var saLen: SockLen
     let fdc = posix.accept(fd, cast[ptr SockAddr](sa.addr), saLen.addr)
     echo "Accepted new client"
-    newCoro(proc() = doClient(fdc))
+    newCoro(doClient, MyTask(fd: fdc))
 
 # Create TCP server socket and coroutine
 
@@ -62,11 +68,10 @@ var sa: Sockaddr_in
 sa.sin_family = AF_INET.uint16
 sa.sin_port = htons(port.uint16)
 sa.sin_addr.s_addr = INADDR_ANY
-echo sa
 discard bindSocket(fd, cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
 discard listen(fd, SOMAXCONN)
 
-let c = newCoro(proc() = doServer(fd))
+discard newCoro(doServer, MyTask(fd: fd))
 
 echo "TCP server ready on port ", port
 
