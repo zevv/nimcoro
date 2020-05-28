@@ -87,7 +87,7 @@ proc doTick(task: TaskBase) =
     jield()
  
 let co = newCoro(doTick)
-discard evq.addTimer(1.0, proc(): bool = co.resume())
+discard evq.addTimer(0.01, proc(): bool = co.resume())
 
 
 # Forever run the event loop

@@ -22,3 +22,5 @@ There's a few moving parts in this project:
   example creates a listening TCP socket which can handle multiple clients,
   which are all run inside coroutines.
 
+Note that the curent coro implementation confuses Nim's GC, run with `--gc:arc`!
+

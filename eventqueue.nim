@@ -26,7 +26,8 @@ type
     deleted: bool
 
   Evq* = object
-    now: float
+    stop: bool
+    tNow: float
     fdHandlers: Table[HandlerId, FdHandler]
     timerHandlers: Table[HandlerId, TimerHandler]
     nextHandlerId: HandlerId
@@ -72,11 +73,11 @@ proc poll(evq: var Evq) =
 
   # Calculate sleep time
   
-  evq.now = now()
+  evq.tNow = now()
   var tSleep = 100.0
   for id, th in evq.timerHandlers:
     if not th.deleted:
-      let dt = th.tWhen - evq.now
+      let dt = th.tWhen - evq.tNow
       tSleep = min(tSleep, dt)
 
   # Collect file descriptors for poll set
@@ -90,20 +91,21 @@ proc poll(evq: var Evq) =
 
   # Call expired timer handlers
   
-  evq.now = now()
+  evq.tNow = now()
   var ths: seq[TimerHandler]
 
   for id, th in evq.timerHandlers:
     if not th.deleted:
-      if evq.now > th.tWhen:
+      if evq.tNow > th.tWhen:
         ths.add th
 
   for th in ths:
-    let del = th.fn()
-    if not del:
-      th.tWhen += th.interval
-    else:
-      evq.delTimer(th.id)
+    if not th.deleted:
+      let del = th.fn()
+      if not del:
+        th.tWhen += th.interval
+      else:
+        evq.delTimer(th.id)
 
   # Call fd handlers with events
 
@@ -125,10 +127,12 @@ proc poll(evq: var Evq) =
         evq.delFd(fdh.id)
 
 
+proc stop*(evq: var Evq) =
+  evq.stop = true
+
 # Run forever
 
 proc run*(evq: var Evq) =
-  while true:
+  while not evq.stop:
     evq.poll()
-
 
