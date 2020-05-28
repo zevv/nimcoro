@@ -1,5 +1,7 @@
 import ucontext
 
+const stackSize = 32768
+
 type
   
   CoroException* = object of CatchableError
@@ -13,7 +15,7 @@ type
   Coro* = ref object
     ctx: ucontext_t
     ctxPrev: ucontext_t
-    stack: seq[uint8]
+    stack: array[stackSize, uint8]
     fn: CoroFn
     status*: CoroStatus
     resumer: Coro         # The coroutine resuming us
@@ -21,30 +23,27 @@ type
   CoroFn = proc()
 
 
-let stackSize = 32768
-
-var coroMain {.threadvar.}: Coro
-var coroCur {.threadVar.}: Coro
+var coroMain {.threadvar.}: Coro  # The "main" coroutine, which is actually not a coroutine
+var coroCur {.threadVar.}: Coro   # The current active coroutine.
 
 proc jield*()
 proc resume*(coro: Coro)
 
 
+# makecontext() target
+
 proc schedule(coro: Coro) {.cdecl.} =
-  # makecontext() target
   coro.fn()
   coro.status = csDead
   jield()
 
 
-proc newCoro*(fn: CoroFn, start=true): Coro =
-  ## Create a new coroutine with body fn
-  let coro = Coro(fn: fn)
-
-  coro.stack.setLen stackSize
+proc newCoro*(fn: CoroFn, start=true): Coro {.discardable.} =
+  ## Create a new coroutine with body `fn`. If `start` is true the coroutine
+  ## will be executed right away
+  let coro = Coro(fn: fn, status: csSuspended)
   coro.ctx.uc_stack.ss_sp = coro.stack[0].addr
   coro.ctx.uc_stack.ss_size = coro.stack.len
-  coro.status = csSuspended
 
   let r = getcontext(coro.ctx)
   doAssert(r == 0)
@@ -56,10 +55,6 @@ proc newCoro*(fn: CoroFn, start=true): Coro =
   return coro
 
 
-proc `$`*(coro: Coro): string =
-  coro.unsafeAddr.repr & ":" & $coro.status
-
-
 proc resume*(coro: Coro) =
   #echo "resume ", coroCur, " -> ", coro
 
@@ -68,7 +63,7 @@ proc resume*(coro: Coro) =
   assert coroCur.status == csRunning
   
   if coro.status != csSuspended:
-    let msg = "cannot resume coroutine " & $coro
+    let msg = "cannot resume coroutine with status " & $coro.status
     echo(msg)
     raise newException(CoroException, msg)
 

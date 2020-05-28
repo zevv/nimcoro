@@ -2,6 +2,7 @@ import coro
 import nativesockets
 import eventqueue
 
+let port = 9000
 var evq: Evq
 
 # This is where the magic happens: This will add a function callback to the
@@ -46,8 +47,8 @@ proc doServer(fd: int) =
   while true:
     waitForEvent(fd, POLLIN)
     let (fdc, st) = fd.SocketHandle.accept()
-    echo "Accepted new client ", st, ", creating coroutine"
-    discard newCoro(proc() =
+    echo "Accepted new client ", st
+    newCoro(proc() =
       doClient(fdc.int))
 
 # Create TCP server socket and coroutine
@@ -55,14 +56,15 @@ proc doServer(fd: int) =
 let fds = createNativeSocket()
 var sa: Sockaddr_in
 sa.sin_family = AF_INET.uint16
-sa.sin_port = htons(9000)
+sa.sin_port = htons(port.uint16)
 sa.sin_addr.s_addr = INADDR_ANY
 discard fds.bindAddr(cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
 discard fds.listen(SOMAXCONN)
 
-discard newCoro(proc() =
+let c = newCoro(proc() =
   doServer(int fds))
 
+echo "TCP server ready on port ", port
 # Forever run the event loop
 
 evq.run()
