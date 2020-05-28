@@ -17,10 +17,11 @@ There's a few moving parts in this project:
   file descriptors with read or write events and a proc, and your proc will
   be called back when the file descriptor is ready.
  
-- main.nim: Here the above two modules come together to create very friendly
-  async I/O. Look at the `waitForFd()` proc to see what is happening. This
-  example creates a listening TCP socket which can handle multiple clients,
-  which are all run inside coroutines.
+- io.nim: Here the above two modules come together to create very friendly
+  async I/O. Look at the `waitForFd()` proc to see what is happening.
+
+- main.nim: This example creates a listening TCP socket which can handle
+  multiple clients, which are all run inside coroutines.
 
 Note that the curent coro implementation confuses Nim's GC, run with `--gc:arc`!
 

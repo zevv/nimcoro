@@ -32,40 +32,43 @@ type
     timerHandlers: Table[HandlerId, TimerHandler]
     nextHandlerId: HandlerId
 
+
+var evq {.threadvar.}: Evq
+
 proc now(): float =
   var ts: Timespec
   discard clock_gettime(CLOCK_MONOTONIC, ts)
   return ts.tv_sec.float + ts.tv_nsec.float * 1.0e-9
 
-proc nextId(evq: var Evq): HandlerId =
+proc nextId(): HandlerId =
   inc evq.nextHandlerId
   return evq.nextHandlerId
 
 # Register/unregister a file descriptor to the loop
 
-proc addFd*(evq: var Evq, fd: int, events: int, fn: Callback): HandlerId =
-  let id = evq.nextId()
+proc addFd*(fd: int, events: int, fn: Callback): HandlerId =
+  let id = nextId()
   evq.fdHandlers[id] = FdHandler(id: id, fd: fd, events: events, fn: fn)
   return id
 
-proc delFd*(evq: var Evq, id: HandlerId) =
+proc delFd*(id: HandlerId) =
   evq.fdHandlers[id].deleted = true
   evq.fdHandlers.del id
 
 # Register/unregister timers
 
-proc addTimer*(evq: var Evq, interval: float, fn: Callback): HandlerId =
-  let id = evq.nextId()
+proc addTimer*(interval: float, fn: Callback): HandlerId =
+  let id = nextId()
   evq.timerHandlers[id] = TimerHandler(id: id, tWhen: now()+interval, interval: interval, fn: fn)
   return id
 
-proc delTimer*(evq: var Evq, id: HandlerId) =
+proc delTimer*(id: HandlerId) =
   evq.timerHandlers[id].deleted = true
   evq.timerHandlers.del id
 
 # Run one iteration
 
-proc poll(evq: var Evq) =
+proc poll() =
 
   if evq.fdHandlers.len == 0:
     echo "Nothing in evq"
@@ -105,7 +108,7 @@ proc poll(evq: var Evq) =
       if not del:
         th.tWhen += th.interval
       else:
-        evq.delTimer(th.id)
+        delTimer(th.id)
 
   # Call fd handlers with events
 
@@ -124,15 +127,15 @@ proc poll(evq: var Evq) =
     if not fdh.deleted:
       let del = fdh.fn()
       if del:
-        evq.delFd(fdh.id)
+        delFd(fdh.id)
 
 
-proc stop*(evq: var Evq) =
+proc stop*() =
   evq.stop = true
 
 # Run forever
 
-proc run*(evq: var Evq) =
+proc run*() =
   while not evq.stop:
-    evq.poll()
+    poll()
 
