@@ -53,8 +53,7 @@ proc doServer(fd: SocketHandle) =
     var saLen: SockLen
     let fdc = posix.accept(fd, cast[ptr SockAddr](sa.addr), saLen.addr)
     echo "Accepted new client"
-    newCoro(proc() =
-      doClient(fdc))
+    newCoro(proc() = doClient(fdc))
 
 # Create TCP server socket and coroutine
 
@@ -63,11 +62,11 @@ var sa: Sockaddr_in
 sa.sin_family = AF_INET.uint16
 sa.sin_port = htons(port.uint16)
 sa.sin_addr.s_addr = INADDR_ANY
+echo sa
 discard bindSocket(fd, cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
 discard listen(fd, SOMAXCONN)
 
-let c = newCoro(proc() =
-  doServer(fd))
+let c = newCoro(proc() = doServer(fd))
 
 echo "TCP server ready on port ", port
 

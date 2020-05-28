@@ -1,7 +1,9 @@
 
 This is a little proof-of-concept prject to see if I can get Lua-style
 coroutines semantics in Nim, and use this to build an alternative async
-implementation.
+implementation. It's built on very low level primitives only: the `posix` lib
+for sockets and `poll()`, and a small wrapper around the posix `ucontext`
+functions.
 
 There's a few moving parts in this project:
 
