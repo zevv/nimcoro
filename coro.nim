@@ -56,8 +56,6 @@ proc newCoro*(fn: CoroFn, start=true): Coro {.discardable.} =
 
 
 proc resume*(coro: Coro) =
-  #echo "resume ", coroCur, " -> ", coro
-
   assert coro != nil
   assert coroCur != nil
   assert coroCur.status == csRunning
@@ -86,8 +84,6 @@ proc resume*(coro: Coro) =
 
 proc jield*() =
   let coro = coroCur
-  #echo "jield ", coro, " -> ", coro.resumer
-
   assert coro != nil
   assert coro.status in {csRunning, csDead}
 

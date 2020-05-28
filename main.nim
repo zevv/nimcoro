@@ -9,14 +9,14 @@ var evq: Evq
 # event queue that will resume the current coro, and the coro will yield itself
 # to sleep. It will be awoken when the fd has an event,
 
-proc waitForEvent(fd: int, event: int) =
-  evq.addFd(fd, event, resumer())
+proc waitForEvent(fd: SocketHandle, event: int) =
+  evq.addFd(fd.int, event, resumer())
   jield()
-  evq.delFd(fd)
+  evq.delFd(fd.int)
 
 # "async" wait for fd and read data
 
-proc asyncRead(fd: int): string =
+proc asyncRead(fd: SocketHandle): string =
   waitForEvent(fd, POLLIN)
   var buf = newString(100)
   let r = recv(fd.SocketHandle, buf[0].addr, buf.len, 0)
@@ -25,13 +25,13 @@ proc asyncRead(fd: int): string =
 
 # "async" wait for fd and write data
 
-proc asyncWrite(fd: int, buf: string) =
+proc asyncWrite(fd: SocketHandle, buf: string) =
   waitForEvent(fd, POLLOUT)
   discard send(fd.SocketHandle, buf[0].unsafeAddr, buf.len, 0)
 
 # Coroutine handling one client connection.
 
-proc doClient(fd: int) =
+proc doClient(fd: SocketHandle) =
   asyncWrite(fd, "Hello! Please type something.\n")
   while true:
     let buf = asyncRead(fd)
@@ -43,13 +43,13 @@ proc doClient(fd: int) =
 
 # Coroutine handling the server socket
 
-proc doServer(fd: int) =
+proc doServer(fd: SocketHandle) =
   while true:
     waitForEvent(fd, POLLIN)
     let (fdc, st) = fd.SocketHandle.accept()
     echo "Accepted new client ", st
     newCoro(proc() =
-      doClient(fdc.int))
+      doClient(fdc))
 
 # Create TCP server socket and coroutine
 
@@ -62,10 +62,10 @@ discard fds.bindAddr(cast[ptr SockAddr](sa.addr), sizeof(sa).SockLen)
 discard fds.listen(SOMAXCONN)
 
 let c = newCoro(proc() =
-  doServer(int fds))
+  doServer(fds))
 
 echo "TCP server ready on port ", port
-# Forever run the event loop
 
+# Forever run the event loop
 evq.run()
 
