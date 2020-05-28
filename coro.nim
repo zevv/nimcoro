@@ -3,7 +3,7 @@ import ucontext
 const stackSize = 32768
 
 type
-  
+
   CoroException* = object of CatchableError
 
   CoroStatus* = enum
@@ -55,10 +55,13 @@ proc newCoro*(fn: CoroFn, start=true): Coro {.discardable.} =
 
 
 proc resume*(coro: Coro) =
+  ## Starts or continues the execution of coroutine co. The first time you
+  ## resume a coroutine, it starts running its body. If the coroutine has
+  ## yielded, resume restarts it.
   assert coro != nil
   assert coroCur != nil
   assert coroCur.status == csRunning
-  
+
   if coro.status != csSuspended:
     let msg = "cannot resume coroutine with status " & $coro.status
     echo(msg)
@@ -82,6 +85,7 @@ proc resume*(coro: Coro) =
 
 
 proc jield*() =
+  ## Suspends the execution of the calling coroutine.
   let coro = coroCur
   assert coro != nil
   assert coro.status in {csRunning, csDead}
@@ -94,16 +98,10 @@ proc jield*() =
   assert(r == 0)
   setFrameState(frame)
 
+
 proc running*(): Coro =
-  ## Return the currently running corou
+  ## Return the currently running coro
   coroCur
-
-proc resumer*(): proc() =
-  ## Return a proc that will resume the currently running coro
-  let coro = coroCur
-  return proc() =
-    coro.resume
-
 
 
 coroMain = Coro(status: csRunning)

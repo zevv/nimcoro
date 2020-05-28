@@ -10,7 +10,10 @@ var evq: Evq
 # to sleep. It will be awoken when the fd has an event,
 
 proc waitForEvent(fd: SocketHandle, event: int) =
-  evq.addFd(fd.int, event, resumer())
+  let co = coro.running()
+  proc resume_me() =
+    co.resume()
+  evq.addFd(fd.int, event, resume_me)
   jield()
   evq.delFd(fd.int)
 
