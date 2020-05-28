@@ -11,8 +11,6 @@ type
     csDead        # finished or stopped with an exception
 
   Coro* = ref object
-    name: string
-    arg: int
     ctx: ucontext_t
     ctxPrev: ucontext_t
     stack: seq[uint8]
@@ -20,39 +18,46 @@ type
     status*: CoroStatus
     resumer: Coro         # The coroutine resuming us
 
-  CoroFn = proc(coro: Coro, arg: int)
+  CoroFn = proc()
 
+
+let stackSize = 32768
 
 var coroMain {.threadvar.}: Coro
 var coroCur {.threadVar.}: Coro
 
-
-proc schedule(coro: Coro) {.cdecl.}
+proc jield*()
 proc resume*(coro: Coro)
 
 
-proc newCoro*(name: string, fn: CoroFn, arg: int): Coro =
-  let coro = Coro()
+proc schedule(coro: Coro) {.cdecl.} =
+  # makecontext() target
+  coro.fn()
+  coro.status = csDead
+  jield()
 
-  coro.name = name
-  coro.fn = fn
-  coro.arg = arg
 
-  coro.stack.setLen(32768)
+proc newCoro*(fn: CoroFn, start=true): Coro =
+  ## Create a new coroutine with body fn
+  let coro = Coro(fn: fn)
+
+  coro.stack.setLen stackSize
   coro.ctx.uc_stack.ss_sp = coro.stack[0].addr
   coro.ctx.uc_stack.ss_size = coro.stack.len
   coro.status = csSuspended
-  let r = getcontext(coro.ctx)
-  makecontext(coro.ctx, schedule, 1, coro);
-  doAssert(r == 0)
 
-  coro.resume()
+  let r = getcontext(coro.ctx)
+  doAssert(r == 0)
+  makecontext(coro.ctx, schedule, 1, coro);
+
+  if start:
+    coro.resume()
 
   return coro
 
 
 proc `$`*(coro: Coro): string =
-  coro.name & ":" & $coro.status
+  coro.unsafeAddr.repr & ":" & $coro.status
 
 
 proc resume*(coro: Coro) =
@@ -99,15 +104,19 @@ proc jield*() =
   assert(r == 0)
   setFrameState(frame)
 
+proc running*(): Coro =
+  ## Return the currently running corou
+  coroCur
+
+proc resumer*(): proc() =
+  ## Return a proc that will resume the currently running coro
+  let coro = coroCur
+  return proc() =
+    coro.resume
 
 
-proc schedule(coro: Coro) {.cdecl.} =
-  coro.fn(coro, coro.arg)
-  coro.status = csDead
-  jield()
 
-
-coroMain = Coro(name: "main", status: csRunning)
+coroMain = Coro(status: csRunning)
 coroCur = coroMain
 
 # vi: ft=nim ts=2 sw=2
