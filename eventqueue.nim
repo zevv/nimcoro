@@ -1,5 +1,5 @@
 
-# eenie teenie event loop
+# eenie teenie event loop, with bugs
 
 import posix, tables
 
@@ -41,7 +41,7 @@ proc delFd*(evq: var Evq, fd: int) =
 # Register/unregister timers
 
 proc addTimer*(evq: var Evq, interval: float, fn: Callback): TimerHandler {.discardable.} =
-  result = TimerHandler(tWhen: now() + interval, interval: interval, fn: fn)
+  result = TimerHandler(tWhen: now()+interval, interval: interval, fn: fn)
   evq.ths.add(result)
 
 
